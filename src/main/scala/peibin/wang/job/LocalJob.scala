@@ -1,13 +1,14 @@
 package peibin.wang.job
 
-import java.util.Date
+import java.util.{Date, UUID}
+
 import com.metamx.common.Granularity
-import com.metamx.tranquility.spark.{BeamRDD, BeamFactory}
+import com.metamx.tranquility.spark.{BeamFactory, BeamRDD}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Row, DataFrame, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.joda.time.{DateTimeZone, DateTime, Period}
+import org.joda.time.{DateTime, DateTimeZone, Period}
 import peibin.wang.job.druid.MapBeamFactory
 
 import scala.collection.mutable
@@ -49,8 +50,10 @@ object LocalJob extends Serializable{
       val sqlContext = SQLContext.getOrCreate(rdd.sparkContext)
       import sqlContext.implicits._
       val dataFrame = rdd.toDF()
-      dataFrame.registerTempTable("test")
-      val sql = """select timestamp , vendor, sum(imp) as imp, sum(clk) as clk from test group by timestamp , vendor"""
+      // generate unique table name, otherwise the data may be duplicated
+      val tableName = s"all_log_${UUID.randomUUID()}".replaceAll("-","_") // table name should not have "-"
+      dataFrame.registerTempTable(tableName)
+      val sql = """select timestamp , vendor, sum(imp) as imp, sum(clk) as clk from test group by timestamp , vendor""".replaceAll(" test ", s" ${tableName} ")
       val result = sqlContext.sql(sql)
       // dataFrame.show()
       send2druid(result)
